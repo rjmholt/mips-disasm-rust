@@ -1,0 +1,6 @@
+[package]
+name = "mips"
+version = "0.1.0"
+authors = ["Robert Holt <robert.holt@posmc.com.au>"]
+
+[dependencies]
