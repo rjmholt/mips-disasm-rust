@@ -1,6 +1,7 @@
+use std::result::Result;
 use mips::data::*;
 
-pub fn decode_instruction(x: u32) -> Option<Instr>
+pub fn decode_instruction(x: u32) -> Result<Instr, String>
 {
     let opcode = get_opcode(x);
 
@@ -9,136 +10,151 @@ pub fn decode_instruction(x: u32) -> Option<Instr>
 
         P_ADDI => {
             let (rs, rt, imm) = get_itype_fields(x);
-            Some(Instr::AddI(AddI { rs: rs, rt: rt, imm: imm }))
+            Ok(Instr::AddI(AddI { rs: rs, rt: rt, imm: imm }))
         },
 
         P_ADDIU => {
             let (rs, rt, imm) = get_itype_fields(x);
-            Some(Instr::AddIU(AddIU { rs: rs, rt: rt, imm: imm }))
+            Ok(Instr::AddIU(AddIU { rs: rs, rt: rt, imm: imm }))
         },
 
         P_ANDI => {
             let (rs, rt, imm) = get_itype_fields(x);
-            Some(Instr::AndI(AndI { rs: rs, rt: rt, imm: imm }))
+            Ok(Instr::AndI(AndI { rs: rs, rt: rt, imm: imm }))
         },
 
         P_BEQ => {
             let (rs, rt, off) = get_itype_fields(x);
-            Some(Instr::BEq(BEq { rs: rs, rt: rt, off: off }))
+            Ok(Instr::BEq(BEq { rs: rs, rt: rt, off: off }))
         },
 
         P_BGTZ => {
             let (rs, _, off) = get_itype_fields(x);
-            Some(Instr::BGTZ(BGTZ { rs: rs, off: off }))
+            Ok(Instr::BGTZ(BGTZ { rs: rs, off: off }))
         },
 
         P_BLEZ => {
             let (rs, _, off) = get_itype_fields(x);
-            Some(Instr::BLEZ(BLEZ { rs: rs, off: off }))
+            Ok(Instr::BLEZ(BLEZ { rs: rs, off: off }))
         },
 
         P_BNE => {
             let (rs, rt, off) = get_itype_fields(x);
-            Some(Instr::BNE(BNE { rs: rs, rt: rt, off: off }))
+            Ok(Instr::BNE(BNE { rs: rs, rt: rt, off: off }))
         },
 
         P_J => {
             let addr = get_addr(x);
-            Some(Instr::J(J { addr: addr }))
+            Ok(Instr::J(J { addr: addr }))
         },
 
         P_JAL => {
             let addr = get_addr(x);
-            Some(Instr::JaL(JaL { addr: addr }))
+            Ok(Instr::JaL(JaL { addr: addr }))
         },
 
         P_LB => {
             let (rs, rt, off) = get_itype_fields(x);
-            Some(Instr::LB(LB { rs: rs, rt: rt, off: off }))
+            Ok(Instr::LB(LB { rs: rs, rt: rt, off: off }))
         },
 
         P_LUI => {
             let (_, rt, imm) = get_itype_fields(x);
-            Some(Instr::LUI(LUI { rt: rt, imm: imm }))
+            Ok(Instr::LUI(LUI { rt: rt, imm: imm }))
         },
 
         P_LW => {
             let (rs, rt, off) = get_itype_fields(x);
-            Some(Instr::LW(LW { rs: rs, rt: rt, off: off }))
+            Ok(Instr::LW(LW { rs: rs, rt: rt, off: off }))
         },
 
         P_ORI => {
             let (rs, rt, imm) = get_itype_fields(x);
-            Some(Instr::OrI(OrI { rs: rs, rt: rt, imm: imm }))
+            Ok(Instr::OrI(OrI { rs: rs, rt: rt, imm: imm }))
         },
 
         P_SB => {
             let (rs, rt, off) = get_itype_fields(x);
-            Some(Instr::SB(SB { rs: rs, rt: rt, off: off }))
+            Ok(Instr::SB(SB { rs: rs, rt: rt, off: off }))
+        },
+
+        P_SW => {
+            let (rs, rt, off) = get_itype_fields(x);
+            Ok(Instr::SW(SW { rs: rs, rt: rt, off: off }))
+        },
+
+        P_XORI => {
+            let (rs, rt, imm) = get_itype_fields(x);
+            Ok(Instr::XOrI(XOrI { rs: rs, rt: rt, imm: imm }))
         },
 
         P_MUL => {
             let (rs, rt, rd, _, funct) = get_rtype_fields(x);
             match funct {
-                F_MUL => Some(Instr::Mul(Mul { rs: rs, rt: rt, rd: rd })),
+                F_MUL => Ok(Instr::Mul(Mul { rs: rs, rt: rt, rd: rd })),
 
-                _ => {
-                    println!("Mul opcode has bad funct field");
-                    unknown_instruction(x)
-                }
+                _ =>
+                    Err(unknown_instruction("Mul opcode has bad funct field", x))
             }
         },
 
         P_B_GE_LT_Z => {
             let (rs, rt, off) = get_itype_fields(x);
             match rt {
-                RT_BGEZ => Some(Instr::BGEZ(BGEZ { rs: rs, off: off })),
+                RT_BGEZ => Ok(Instr::BGEZ(BGEZ { rs: rs, off: off })),
 
-                RT_BLTZ => Some(Instr::BLTZ(BLTZ { rs: rs, off: off })),
+                RT_BLTZ => Ok(Instr::BLTZ(BLTZ { rs: rs, off: off })),
 
-                _ => {
-                    println!("BGEZ/BLTZ opcode has bad rt field");
-                    unknown_instruction(x)
-                }
+                _ =>
+                    Err(unknown_instruction("BGEZ/BLTZ opcode has bad rt field", x))
             }
         },
 
         _ => {
-            unknown_instruction(x)
+            Err(unknown_instruction("Unknown opcode", x))
         }
     }
 }
 
-fn decode_zero_prefix_instruction(x: u32) -> Option<Instr>
+fn decode_zero_prefix_instruction(x: u32) -> Result<Instr, String>
 {
     let (rs, rt, rd, shamt, funct) = get_rtype_fields(x);
 
     match funct {
-        F_ADD => Some(Instr::Add(Add { rs: rs, rt: rt, rd: rd })),
+        F_ADD     => Ok(Instr::Add(Add { rs: rs, rt: rt, rd: rd })),
 
-        F_ADDU => Some(Instr::AddU(AddU { rs: rs, rt: rt, rd: rd })),
+        F_ADDU    => Ok(Instr::AddU(AddU { rs: rs, rt: rt, rd: rd })),
 
-        F_AND => Some(Instr::And(And { rs: rs, rt: rt, rd: rd })),
+        F_AND     => Ok(Instr::And(And { rs: rs, rt: rt, rd: rd })),
 
-        F_JALR => Some(Instr::JaLR(JaLR { rs: rs, rd: rd })),
+        F_JALR    => Ok(Instr::JaLR(JaLR { rs: rs, rd: rd })),
 
-        F_JR => Some(Instr::JR(JR { rs: rs })),
+        F_JR      => Ok(Instr::JR(JR { rs: rs })),
 
-        F_OR => Some(Instr::Or(Or { rs: rs, rt: rt, rd: rd })),
+        F_OR      => Ok(Instr::Or(Or { rs: rs, rt: rt, rd: rd })),
 
-        F_SLT => Some(Instr::SLT(SLT { rs: rs, rt: rt, rd: rd })),
+        F_SLT     => Ok(Instr::SLT(SLT { rs: rs, rt: rt, rd: rd })),
+
+        F_SRA     => Ok(Instr::SRA(SRA { rt: rt, rd: rd, shamt: shamt })),
+
+        F_SUB     => Ok(Instr::Sub(Sub { rs: rs, rt: rt, rd: rd })),
+
+        F_SUBU    => Ok(Instr::SubU(SubU { rs: rs, rt: rt, rd: rd })),
+
+        F_SYSCALL => Ok(Instr::Syscall(Syscall {})),
+
+        F_XOR     => Ok(Instr::XOr(XOr { rs: rs, rt: rt, rd: rd })),
 
         F_ZERO =>
             if rs != 0 || rt != 0 || rd != 0 || shamt != 0 {
-                Some(Instr::SLL(SLL { rt: rt, rd: rd, shamt: shamt }))
+                Ok(Instr::SLL(SLL { rt: rt, rd: rd, shamt: shamt }))
             }
             else {
-                Some(Instr::NOp(NOp {}))
+                Ok(Instr::NOp(NOp {}))
             },
 
         _ => {
-            println!("Unknown funct code");
-            unknown_instruction(x)
+            Err(unknown_instruction("Unknown funct code", x))
         }
     }
 }
@@ -208,10 +224,14 @@ fn get_itype_fields(x: u32) -> (u8, u8, u16)
     (rs, rt, imm)
 }
 
-fn unknown_instruction(x: u32) -> Option<Instr>
+fn unknown_instruction(why: &'static str, x: u32) -> String
 {
     let opcode = get_opcode(x);
-    println!("Unknown opcode: 0x{:02x}", opcode);
-    println!("\tInstruction: 0x{:08x}", x);
-    None
+    let funct  = get_funct(x);
+    format!("Instruction decoding error:\n\
+             \t{}\n\
+             \tInstruction code: 0x{:08x}\n\
+             \tOpcode: 0x{:x}\n\
+             \tFunct: 0x{:x}\n",
+            why, x, opcode, funct)
 }

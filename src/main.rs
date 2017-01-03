@@ -1,8 +1,8 @@
 use std::env;
 use std::fs::File;
+use std::io;
 use std::io::prelude::*;
-
-use mips::decode_instruction;
+use mips::Jump;
 
 mod mips;
 
@@ -24,10 +24,30 @@ fn get_file_contents(filename: String) -> String
     let mut contents = String::new();
     match file.read_to_string(&mut contents) {
         Err(why) => panic!("File could not be read: {}", why),
-        Ok(_) => print!("File contents:\n{}\n\n", contents)
+        Ok(_) => print!("File contents:\n{}\n", contents)
     };
 
     contents
+}
+
+struct Block
+{
+    pub label: String,
+    pub instrs: Vec<mips::Instr>
+}
+
+impl std::fmt::Display for Block
+{
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result
+    {
+        try!(write!(f, "{}:\n", self.label));
+
+        for ref instr in &self.instrs {
+            try!(write!(f, "\t{}\n", instr));
+        }
+
+        Ok(())
+    }
 }
 
 fn main()
@@ -37,33 +57,52 @@ fn main()
         get_file_contents(filename)
     };
 
-    let mut code_vec  = Vec::new();
-    let mut instr_vec = Vec::new();
-    for instr_str in file_contents.split_whitespace() {
+    let instr_vec = match mips::string_to_instr_vec(file_contents) {
+        Ok(iv) => iv,
+        Err(why) => panic!(why)
+    };
 
-        let instr_val = match u32::from_str_radix(instr_str, 16) {
-            Ok(result) => result,
-            Err(why) => panic!("Unable to parse hex: {}", why)
-        };
-
-        if instr_val == mips::TERMINATE {
-            break;
-        }
-
-        code_vec.push(instr_val);
-
-        let instr = {
-            match decode_instruction(instr_val) {
-                Some(i) => i,
-                None => panic!("Invalid instruction: 0x{:08x}", instr_val)
-            }
-        };
-        instr_vec.push(instr);
-    }
+    mips::print_instrs(&mut io::stdout(), &instr_vec);
 
     let mut curr_addr = mips::START_ADDR;
-    for (instr, code) in instr_vec.iter().zip(code_vec.iter()) {
-        println!("[0x{:08x}] 0x{:08x} {}", curr_addr, code, instr);
+    let mut branches = vec![0x00400024];
+    for &(_, ref instr) in &instr_vec {
+        match instr {
+            &mips::Instr::J(ref j) =>
+                branches.push(j.branch_addr(curr_addr)),
+            &mips::Instr::JaL(ref jal) =>
+                branches.push(jal.branch_addr(curr_addr)),
+            &mips::Instr::BGTZ(ref bgtz) => {
+                branches.push(bgtz.branch_addr(curr_addr))
+            },
+            _ => ()
+        }
         curr_addr += mips::BYTE_SIZE as u32;
     }
+
+    branches.sort();
+
+    for &addr in &branches {
+        println!("0x{:08x}", addr)
+    }
+
+    let main_block = Block {
+        label: "main".to_string(),
+        instrs: Vec::new()
+    };
+
+    let blocks = vec![main_block];
+    curr_addr = mips::START_ADDR;
+
+    for &addr in &branches {
+        blocks.push(Block {
+            label: format!("a{:08x}", addr),
+            instrs: Vec:new()
+        });
+    }
+
+    // TODO: Look through the instructions and find the basic blocks
+    // by finding all the addresses jumped to and then creating
+    // blocks for each, plus the start address and adding the
+    // component instructions to the relevant block
 }

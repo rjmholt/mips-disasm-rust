@@ -1,13 +1,13 @@
+mod read;
+mod data;
 mod decode;
-pub mod data;
+mod print;
 
-use mips::data::Instr;
+pub use mips::data::Instr as Instr;
+pub use mips::data::Jump as Jump;
+pub use mips::read::string_to_instr_vec as string_to_instr_vec;
+pub use mips::print::print_instrs as print_instrs;
 
-pub fn decode_instruction(instr: u32) -> Option<Instr>
-{
-    decode::decode_instruction(instr)
-}
-
-pub const TERMINATE:  u32 = data::TERMINATE;
-pub const START_ADDR: u32 = data::START_ADDR;
-pub const BYTE_SIZE:  u16 = data::BYTE_SIZE;
+pub use mips::data::TERMINATE  as TERMINATE;
+pub use mips::data::START_ADDR as START_ADDR;
+pub use mips::data::BYTE_SIZE  as BYTE_SIZE;

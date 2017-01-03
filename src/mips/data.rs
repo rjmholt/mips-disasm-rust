@@ -38,6 +38,7 @@ pub const P_MUL:   u8 = 0x1c;
 pub const P_ORI:   u8 = 0xd;
 pub const P_SB:    u8 = 0x28;
 pub const P_SW:    u8 = 0x2b;
+pub const P_XORI:  u8 = 0xe;
 // Opcode applies to both BGEZ and BLTZ, which rely on RD to differentiate
 pub const P_B_GE_LT_Z: u8 = 0x1;
 // Common r-type instructions have opcode 0x0, using FUNCT instead
@@ -60,6 +61,7 @@ pub const F_SRA:     u8 = 0x3;
 pub const F_SUB:     u8 = 0x22;
 pub const F_SUBU:    u8 = 0x23;
 pub const F_SYSCALL: u8 = 0xc;
+pub const F_XOR:     u8 = 0x26;
 // This code is used for both SLL and NOP (which is a 0 shift...)
 pub const F_ZERO:    u8 = 0x0;
 
@@ -97,7 +99,14 @@ pub enum Instr
     OrI(OrI),
     SB(SB),
     SLL(SLL),
-    SLT(SLT)
+    SLT(SLT),
+    SRA(SRA),
+    Sub(Sub),
+    SubU(SubU),
+    SW(SW),
+    Syscall(Syscall),
+    XOr(XOr),
+    XOrI(XOrI)
 }
 
 impl fmt::Display for Instr
@@ -105,34 +114,46 @@ impl fmt::Display for Instr
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result
     {
         match *self {
-            Instr::Add(ref instr)   => instr.fmt(f),
-            Instr::AddI(ref instr)  => instr.fmt(f),
-            Instr::AddIU(ref instr) => instr.fmt(f),
-            Instr::AddU(ref instr)  => instr.fmt(f),
-            Instr::And(ref instr)   => instr.fmt(f),
-            Instr::AndI(ref instr)  => instr.fmt(f),
-            Instr::BEq(ref instr)   => instr.fmt(f),
-            Instr::BGEZ(ref instr)  => instr.fmt(f),
-            Instr::BGTZ(ref instr)  => instr.fmt(f),
-            Instr::BLEZ(ref instr)  => instr.fmt(f),
-            Instr::BLTZ(ref instr)  => instr.fmt(f),
-            Instr::BNE(ref instr)   => instr.fmt(f),
-            Instr::J(ref instr)     => instr.fmt(f),
-            Instr::JaL(ref instr)   => instr.fmt(f),
-            Instr::JaLR(ref instr)  => instr.fmt(f),
-            Instr::JR(ref instr)    => instr.fmt(f),
-            Instr::LB(ref instr)    => instr.fmt(f),
-            Instr::LUI(ref instr)   => instr.fmt(f),
-            Instr::LW(ref instr)    => instr.fmt(f),
-            Instr::Mul(ref instr)   => instr.fmt(f),
-            Instr::NOp(ref instr)   => instr.fmt(f),
-            Instr::Or(ref instr)    => instr.fmt(f),
-            Instr::OrI(ref instr)   => instr.fmt(f),
-            Instr::SB(ref instr)    => instr.fmt(f),
-            Instr::SLL(ref instr)   => instr.fmt(f),
-            Instr::SLT(ref instr)   => instr.fmt(f)
+            Instr::Add(ref instr)     => instr.fmt(f),
+            Instr::AddI(ref instr)    => instr.fmt(f),
+            Instr::AddIU(ref instr)   => instr.fmt(f),
+            Instr::AddU(ref instr)    => instr.fmt(f),
+            Instr::And(ref instr)     => instr.fmt(f),
+            Instr::AndI(ref instr)    => instr.fmt(f),
+            Instr::BEq(ref instr)     => instr.fmt(f),
+            Instr::BGEZ(ref instr)    => instr.fmt(f),
+            Instr::BGTZ(ref instr)    => instr.fmt(f),
+            Instr::BLEZ(ref instr)    => instr.fmt(f),
+            Instr::BLTZ(ref instr)    => instr.fmt(f),
+            Instr::BNE(ref instr)     => instr.fmt(f),
+            Instr::J(ref instr)       => instr.fmt(f),
+            Instr::JaL(ref instr)     => instr.fmt(f),
+            Instr::JaLR(ref instr)    => instr.fmt(f),
+            Instr::JR(ref instr)      => instr.fmt(f),
+            Instr::LB(ref instr)      => instr.fmt(f),
+            Instr::LUI(ref instr)     => instr.fmt(f),
+            Instr::LW(ref instr)      => instr.fmt(f),
+            Instr::Mul(ref instr)     => instr.fmt(f),
+            Instr::NOp(ref instr)     => instr.fmt(f),
+            Instr::Or(ref instr)      => instr.fmt(f),
+            Instr::OrI(ref instr)     => instr.fmt(f),
+            Instr::SB(ref instr)      => instr.fmt(f),
+            Instr::SLL(ref instr)     => instr.fmt(f),
+            Instr::SLT(ref instr)     => instr.fmt(f),
+            Instr::SRA(ref instr)     => instr.fmt(f),
+            Instr::Sub(ref instr)     => instr.fmt(f),
+            Instr::SubU(ref instr)    => instr.fmt(f),
+            Instr::SW(ref instr)      => instr.fmt(f),
+            Instr::Syscall(ref instr) => instr.fmt(f),
+            Instr::XOr(ref instr)     => instr.fmt(f),
+            Instr::XOrI(ref instr)    => instr.fmt(f)
         }
     }
+}
+
+pub trait Jump
+{
+    fn branch_addr(&self, curr_addr: u32) -> u32;
 }
 
 pub struct Add
@@ -240,6 +261,14 @@ impl fmt::Display for BEq
     }
 }
 
+impl Jump for BEq
+{
+    fn branch_addr(&self, curr_addr: u32) -> u32
+    {
+        branch_calc_goto(self.off as u32, curr_addr)
+    }
+}
+
 pub struct BGEZ
 {
     pub rs:  u8,
@@ -251,6 +280,14 @@ impl fmt::Display for BGEZ
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result
     {
         write!(f, "bgez ${}, {}", self.rs, BYTE_SIZE * self.off)
+    }
+}
+
+impl Jump for BGEZ
+{
+    fn branch_addr(&self, curr_addr: u32) -> u32
+    {
+        branch_calc_goto(self.off as u32, curr_addr)
     }
 }
 
@@ -268,6 +305,14 @@ impl fmt::Display for BGTZ
     }
 }
 
+impl Jump for BGTZ
+{
+    fn branch_addr(&self, curr_addr: u32) -> u32
+    {
+        branch_calc_goto(self.off as u32, curr_addr)
+    }
+}
+
 pub struct BLEZ
 {
     pub rs:  u8,
@@ -282,6 +327,14 @@ impl fmt::Display for BLEZ
     }
 }
 
+impl Jump for BLEZ
+{
+    fn branch_addr(&self, curr_addr: u32) -> u32
+    {
+        branch_calc_goto(self.off as u32, curr_addr)
+    }
+}
+
 pub struct BLTZ
 {
     pub rs:  u8,
@@ -293,6 +346,14 @@ impl fmt::Display for BLTZ
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result
     {
         write!(f, "bltz ${}, {}", self.rs, BYTE_SIZE * self.off)
+    }
+}
+
+impl Jump for BLTZ
+{
+    fn branch_addr(&self, curr_addr: u32) -> u32
+    {
+        branch_calc_goto(self.off as u32, curr_addr)
     }
 }
 
@@ -311,6 +372,14 @@ impl fmt::Display for BNE
     }
 }
 
+impl Jump for BNE
+{
+    fn branch_addr(&self, curr_addr: u32) -> u32
+    {
+        branch_calc_goto(self.off as u32, curr_addr)
+    }
+}
+
 pub struct J
 {
     pub addr: u32
@@ -324,6 +393,14 @@ impl fmt::Display for J
     }
 }
 
+impl Jump for J
+{
+    fn branch_addr(&self, curr_addr: u32) -> u32
+    {
+        self.addr * (BYTE_SIZE as u32)
+    }
+}
+
 pub struct JaL
 {
     pub addr: u32
@@ -334,6 +411,14 @@ impl fmt::Display for JaL
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result
     {
         write!(f, "jal 0x{:08x}", (BYTE_SIZE as u32) * self.addr)
+    }
+}
+
+impl Jump for JaL
+{
+    fn branch_addr(&self, curr_addr: u32) -> u32
+    {
+        self.addr * (BYTE_SIZE as u32)
     }
 }
 
@@ -506,4 +591,109 @@ impl fmt::Display for SLT
     {
         write!(f, "slt ${}, ${}, ${}", self.rd, self.rs, self.rt)
     }
+}
+
+pub struct SRA
+{
+    pub rt:    u8,
+    pub rd:    u8,
+    pub shamt: u8
+}
+
+impl fmt::Display for SRA
+{
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result
+    {
+        write!(f, "sra ${}, ${}, {}", self.rd, self.rt, self.shamt)
+    }
+}
+
+pub struct Sub
+{
+    pub rs: u8,
+    pub rt: u8,
+    pub rd: u8
+}
+
+impl fmt::Display for Sub
+{
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result
+    {
+        write!(f, "sub ${}, ${}, ${}", self.rd, self.rs, self.rt)
+    }
+}
+
+pub struct SubU
+{
+    pub rs: u8,
+    pub rt: u8,
+    pub rd: u8
+}
+
+impl fmt::Display for SubU
+{
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result
+    {
+        write!(f, "subu ${}, ${}, ${}", self.rd, self.rd, self.rt)
+    }
+}
+
+pub struct SW
+{
+    pub rs:  u8,
+    pub rt:  u8,
+    pub off: u16
+}
+
+impl fmt::Display for SW
+{
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result
+    {
+        write!(f, "sw ${}, {}(${})", self.rt, BYTE_SIZE * self.off, self.rs)
+    }
+}
+
+pub struct Syscall {}
+
+impl fmt::Display for Syscall
+{
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result
+    {
+        write!(f, "syscall")
+    }
+}
+
+pub struct XOr
+{
+    pub rs: u8,
+    pub rt: u8,
+    pub rd: u8
+}
+
+impl fmt::Display for XOr
+{
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result
+    {
+        write!(f, "xor ${}, ${}, ${}", self.rd, self.rs, self.rt)
+    }
+}
+
+pub struct XOrI
+{
+    pub rs:  u8,
+    pub rt:  u8,
+    pub imm: u16
+}
+
+impl fmt::Display for XOrI
+{
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result
+    {
+        write!(f, "xori ${}, ${}, {}", self.rt, self.rs, self.imm)
+    }
+}
+
+fn branch_calc_goto(offset: u32, curr_addr: u32) -> u32
+{
+    curr_addr + (offset * (BYTE_SIZE as u32))
 }
