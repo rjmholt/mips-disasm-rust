@@ -50,6 +50,11 @@ impl std::fmt::Display for Block
     }
 }
 
+fn index_to_addr(index: usize) -> u32
+{
+    mips::START_ADDR + (mips::BYTE_SIZE as u32) * (index as u32)
+}
+
 fn main()
 {
     let file_contents = {
@@ -57,7 +62,7 @@ fn main()
         get_file_contents(filename)
     };
 
-    let instr_vec = match mips::string_to_instr_vec(file_contents) {
+    let mut instr_vec = match mips::string_to_instr_vec(file_contents) {
         Ok(iv) => iv,
         Err(why) => panic!(why)
     };
@@ -91,13 +96,13 @@ fn main()
         instrs: Vec::new()
     };
 
-    let blocks = vec![main_block];
+    let mut blocks = vec![main_block];
     curr_addr = mips::START_ADDR;
 
     for &addr in &branches {
         blocks.push(Block {
             label: format!("a{:08x}", addr),
-            instrs: Vec:new()
+            instrs: Vec::new()
         });
     }
 
@@ -105,4 +110,25 @@ fn main()
     // by finding all the addresses jumped to and then creating
     // blocks for each, plus the start address and adding the
     // component instructions to the relevant block
+
+    let mut i: usize = 0;
+    let mut j: usize = 0;
+    while index_to_addr(i) < 0x00400024 {
+        match instr_vec.pop() {
+            Some(instr) => blocks[j].instrs.push(instr.1),
+            None => () // Should break...
+        }
+        i += 1;
+    }
+
+    while i < instr_vec.len() {
+        if index_to_addr(i) <= branches[j] {
+            j += 1
+        }
+        match instr_vec.pop() {
+            Some(instr) => blocks[j].instrs.push(instr.1),
+            None => ()
+        }
+        i += 1;
+    }
 }
